@@ -160,6 +160,7 @@ fun DashboardScreen(viewModel: InventarioViewModel) {
                     )
                 }
             },
+
             confirmButton = {
                 Button(
                     onClick = {
