@@ -3,45 +3,31 @@ package com.melanie.inventario
 import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
-import androidx.activity.enableEdgeToEdge
-import androidx.compose.foundation.layout.fillMaxSize
-import androidx.compose.foundation.layout.padding
-import androidx.compose.material3.Scaffold
-import androidx.compose.material3.Text
-import androidx.compose.runtime.Composable
-import androidx.compose.ui.Modifier
-import androidx.compose.ui.tooling.preview.Preview
+import androidx.lifecycle.ViewModelProvider
+import com.melanie.inventario.data.InventarioDatabase
+import com.melanie.inventario.ui.dashboard.DashboardScreen
+import com.melanie.inventario.ui.dashboard.MainScreen
 import com.melanie.inventario.ui.theme.InventarioTheme
+import com.melanie.inventario.viewmodel.InventarioViewModel
+import com.melanie.inventario.viewmodel.InventarioViewModelFactory
 
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-        enableEdgeToEdge()
+
+        // 1. Iniciamos el motor de la base de datos
+        val database = InventarioDatabase.getDatabase(this)
+        val dao = database.inventarioDao()
+
+        // 2. Iniciamos el ViewModel que creaste
+        val factory = InventarioViewModelFactory(dao)
+        val viewModel = ViewModelProvider(this, factory)[InventarioViewModel::class.java]
+
+        // 3. Dibujamos la pantalla aplicando los colores
         setContent {
             InventarioTheme {
-                Scaffold(modifier = Modifier.fillMaxSize()) { innerPadding ->
-                    Greeting(
-                        name = "Android",
-                        modifier = Modifier.padding(innerPadding)
-                    )
-                }
+                MainScreen(viewModel = viewModel)
             }
         }
-    }
-}
-
-@Composable
-fun Greeting(name: String, modifier: Modifier = Modifier) {
-    Text(
-        text = "Hello $name!",
-        modifier = modifier
-    )
-}
-
-@Preview(showBackground = true)
-@Composable
-fun GreetingPreview() {
-    InventarioTheme {
-        Greeting("Android")
     }
 }
