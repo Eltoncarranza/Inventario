@@ -25,6 +25,7 @@ class InventarioViewModel(private val dao: InventarioDao) : ViewModel() {
                 stockMinimo = stockMinimo
             ))
         }
+
     }
     fun registrarConsumo(insumo: Insumo, cantidadAUsar: Double) {
         viewModelScope.launch {
