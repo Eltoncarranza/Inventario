@@ -7,8 +7,8 @@ import androidx.room.PrimaryKey
 data class Compra(
     @PrimaryKey(autoGenerate = true) val id: Int = 0,
     val nombreInsumo: String,
-    val unidad: String,
     val cantidad: Double,
     val costo: Double,
+    val unidad: String,
     val fechaEnMilisegundos: Long
 )

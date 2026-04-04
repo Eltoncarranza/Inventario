@@ -5,7 +5,11 @@ import androidx.room.Database
 import androidx.room.Room
 import androidx.room.RoomDatabase
 
-@Database(entities = [Insumo::class, Consumo::class, Venta::class, Compra::class], version = 1, exportSchema = false)
+@Database(
+    entities = [Insumo::class, Venta::class, Consumo::class, Compra::class], // ¡Deben estar las 4 aquí!
+    version = 2, // Sube la versión a 2 para que no choque con la BD vieja
+    exportSchema = false
+)
 abstract class InventarioDatabase : RoomDatabase() {
 
     abstract fun inventarioDao(): InventarioDao

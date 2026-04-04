@@ -1,5 +1,6 @@
 package com.melanie.inventario.data
 
+
 import androidx.room.Dao
 import androidx.room.Insert
 import androidx.room.OnConflictStrategy
@@ -11,6 +12,18 @@ import kotlinx.coroutines.flow.Flow
 interface InventarioDao {
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun agregarInsumo(insumo: Insumo)
+
+    @Insert
+    suspend fun registrarVenta(venta: Venta)
+
+    @Query("""
+        SELECT i.nombre as nombreInsumo, SUM(v.cantidadVendida) as totalCantidad, SUM(v.precioTotal) as totalIngresos 
+        FROM ventas v 
+        INNER JOIN insumos i ON v.insumoId = i.id 
+        WHERE v.fechaEnMilisegundos BETWEEN :fechaInicio AND :fechaFin 
+        GROUP BY i.id
+    """)
+    fun obtenerReporteVentasPeriodo(fechaInicio: Long, fechaFin: Long): Flow<List<ReporteVentaItem>>
 
     @Insert
     suspend fun registrarConsumo(consumo: Consumo)

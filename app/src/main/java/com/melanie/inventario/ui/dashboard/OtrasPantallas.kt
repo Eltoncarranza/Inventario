@@ -296,8 +296,11 @@ fun ReporteConsumoScreen(viewModel: InventarioViewModel) { Box(modifier = Modifi
 fun ReporteComprasScreen(viewModel: InventarioViewModel) { Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) { Text("Reporte de Compras (Próximamente)", color = MaterialTheme.colorScheme.onBackground) } }
 
 @Composable
-fun ReporteVentasScreen() { Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) { Text("Reporte de Ventas (Próximamente)", color = MaterialTheme.colorScheme.onBackground) } }
-
+fun ReporteVentasScreen(viewModel: InventarioViewModel) {
+    Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+        Text("Reporte de Ventas (Próximamente)", color = MaterialTheme.colorScheme.onBackground)
+    }
+}
 @Composable
 fun AlertasScreen(viewModel: InventarioViewModel) {
     val insumos by viewModel.todosLosInsumos.collectAsState(initial = emptyList())
@@ -346,4 +349,8 @@ fun AlertasScreen(viewModel: InventarioViewModel) {
 @Composable
 fun ReportesScreen() { Box(modifier = Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background), contentAlignment = Alignment.Center) { Text("Pantalla de Reportes (En construcción)", color = MaterialTheme.colorScheme.onBackground) } }
 @Composable
-fun VentasScreen() { Box(modifier = Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background), contentAlignment = Alignment.Center) { Text("Módulo de Ventas (Próxima actualización)", color = MaterialTheme.colorScheme.onBackground) } }
+fun VentasScreen(viewModel: InventarioViewModel) {
+    Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+        Text("Módulo de Ventas (Próxima actualización)", color = MaterialTheme.colorScheme.onBackground)
+    }
+}

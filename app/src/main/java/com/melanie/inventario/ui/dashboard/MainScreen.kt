@@ -71,13 +71,14 @@ fun MainScreen(viewModel: InventarioViewModel) {
             composable(Screen.Inicio.route) { DashboardScreen(viewModel) }
             composable(Screen.Alertas.route) { AlertasScreen(viewModel) }
 
-            // --- NUEVO: MENÚ DE REPORTES ---
+            // --- MENÚ DE REPORTES ---
             composable(Screen.Reportes.route) { ReportesMenuScreen(navController) }
             composable(Screen.ReporteConsumo.route) { ReporteConsumoScreen(viewModel) }
             composable(Screen.ReporteCompras.route) { ReporteComprasScreen(viewModel) }
-            composable(Screen.ReporteVentas.route) { ReporteVentasScreen() }
+            composable(Screen.ReporteVentas.route) { ReporteVentasScreen(viewModel) } // Dejamos la que tiene viewModel
 
-            composable(Screen.Ventas.route) { VentasScreen() }
+            // --- MÓDULO DE VENTAS ---
+            composable(Screen.Ventas.route) { VentasScreen(viewModel) } // Dejamos la que tiene viewModel
 
             // --- AJUSTES Y SUB-PANTALLAS ---
             composable(Screen.Ajustes.route) { AjustesScreen(navController) }

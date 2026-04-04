@@ -1,5 +1,6 @@
 package com.melanie.inventario.viewmodel
 
+
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.viewModelScope
@@ -8,6 +9,8 @@ import com.melanie.inventario.data.Consumo
 import com.melanie.inventario.data.Insumo
 import com.melanie.inventario.data.InventarioDao
 import com.melanie.inventario.data.ReporteCompraItem
+import com.melanie.inventario.data.ReporteVentaItem
+import com.melanie.inventario.data.Venta
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.launch
 
@@ -26,6 +29,41 @@ class InventarioViewModel(private val dao: InventarioDao) : ViewModel() {
             ))
         }
 
+    }
+
+    // NUEVO: Función inteligente de Punto de Venta
+    fun registrarVentaPlato(nombreInsumoBase: String, precioVenta: Double) {
+        viewModelScope.launch {
+            // Buscamos la "caja" de donde sacar la presa (ej. "Presas para Salchipollo")
+            val insumo = dao.buscarInsumoPorNombre(nombreInsumoBase)
+
+            // Si la caja existe y tiene al menos 1 presa...
+            if (insumo != null && insumo.stockActual >= 1) {
+                val fecha = System.currentTimeMillis()
+
+                dao.registrarVenta(
+                    Venta(
+                        insumoId = insumo.id,
+                        cantidadVendida = 1.0,
+                        precioTotal = precioVenta,
+                        fechaEnMilisegundos = fecha
+                    )
+                )
+
+                // 2. Le restamos 1 presa al inventario automáticamente
+                val stockRestante = insumo.stockActual - 1.0
+                if (stockRestante <= 0) {
+                    dao.restarStock(insumo.id, insumo.stockActual)
+                } else {
+                    dao.restarStock(insumo.id, 1.0)
+                }
+            }
+        }
+    }
+
+    // Para visualizar el gráfico de ventas después
+    fun obtenerReporteVentas(fechaInicio: Long, fechaFin: Long): Flow<List<ReporteVentaItem>> {
+        return dao.obtenerReporteVentasPeriodo(fechaInicio, fechaFin)
     }
     fun registrarConsumo(insumo: Insumo, cantidadAUsar: Double) {
         viewModelScope.launch {
