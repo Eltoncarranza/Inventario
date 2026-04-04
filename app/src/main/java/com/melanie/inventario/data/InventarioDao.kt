@@ -4,6 +4,7 @@ import androidx.room.Dao
 import androidx.room.Insert
 import androidx.room.OnConflictStrategy
 import androidx.room.Query
+import androidx.room.Update
 import kotlinx.coroutines.flow.Flow
 
 @Dao
@@ -27,4 +28,33 @@ interface InventarioDao {
     // NUEVO: Función para eliminar el insumo si se acaba
     @Query("DELETE FROM insumos WHERE id = :insumoId")
     suspend fun eliminarInsumo(insumoId: Int)
+
+    // --- NUEVAS FUNCIONES PARA EL CONVERTIDOR ---
+
+    // Busca si ya existe un insumo con un nombre específico (ej. "Presa de Caldo")
+    @Query("SELECT * FROM insumos WHERE nombre = :nombreInsumo LIMIT 1")
+    suspend fun buscarInsumoPorNombre(nombreInsumo: String): Insumo?
+
+    // Permite sumar stock a un insumo que ya existe
+    @Query("UPDATE insumos SET stockActual = stockActual + :cantidadASumar WHERE id = :insumoId")
+    suspend fun sumarStock(insumoId: Int, cantidadASumar: Double)
+
+    // NUEVO: Función para cuando vas al mercado y compras más de algo que ya tienes
+    @Query("UPDATE insumos SET stockActual = stockActual + :cantidad, costo = costo + :nuevoCosto WHERE id = :insumoId")
+    suspend fun recargarStock(insumoId: Int, cantidad: Double, nuevoCosto: Double)
+
+    // NUEVO: Permite editar un insumo completo (cambiar nombre, alarma, etc.)
+    @Update
+    suspend fun actualizarInsumo(insumo: Insumo)
+
+    @Insert
+    suspend fun registrarCompra(compra: Compra)
+
+    @Query("""
+        SELECT nombreInsumo as nombre, unidad, SUM(cantidad) as totalComprado, SUM(costo) as costoTotal 
+        FROM compras 
+        WHERE fechaEnMilisegundos BETWEEN :fechaInicio AND :fechaFin 
+        GROUP BY nombreInsumo, unidad
+    """)
+    fun obtenerReporteComprasPeriodo(fechaInicio: Long, fechaFin: Long): Flow<List<ReporteCompraItem>>
 }

@@ -7,7 +7,8 @@ import androidx.room.PrimaryKey
 data class Insumo(
     @PrimaryKey(autoGenerate = true) val id: Int = 0,
     val nombre: String,
-    val unidad: String, // kg, litros, unidades, etc.
+    val unidad: String,
     val stockActual: Double,
-    val costo: Double // Agregamos el costo para tus reportes de inversión
+    val costo: Double = 0.0,
+    val stockMinimo: Double = 2.0 // NUEVO: La alarma personalizada para cada producto
 )
