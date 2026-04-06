@@ -144,8 +144,10 @@ class InventarioViewModel(private val dao: InventarioDao) : ViewModel() {
         return dao.obtenerReporteComprasPeriodo(fechaInicio, fechaFin)
     }
 
+    // En InventarioViewModel.kt
     fun obtenerReporteVentas(fechaInicio: Long, fechaFin: Long): Flow<List<ReporteVentaItem>> {
-        return dao.obtenerReporteVentasPeriodo(fechaInicio, fechaFin)
+
+        return dao.obtenerReporteVentas(fechaInicio, fechaFin)
     }
     fun convertirHuesitos(insumoBolsaHueso: Insumo, kilosUsados: Double, cantidadHuesosSacados: Int) {
         viewModelScope.launch {

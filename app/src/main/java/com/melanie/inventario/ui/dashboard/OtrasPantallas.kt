@@ -107,6 +107,7 @@ fun VentasScreen(viewModel: InventarioViewModel) {
                 descripcionVenta = ""
             },
             title = { Text("Confirmar Venta", fontWeight = FontWeight.Bold) },
+            // Dentro del AlertDialog de VentasScreen
             text = {
                 Column {
                     Text("Producto: $platoSeleccionado", fontWeight = FontWeight.Medium)
@@ -114,33 +115,31 @@ fun VentasScreen(viewModel: InventarioViewModel) {
 
                     Spacer(modifier = Modifier.height(16.dp))
 
-                    // --- VALIDACIÓN VISUAL DE STOCK ---
+                    // Validación de Stock
+                    val stockDisponible = todosLosInsumos.find { it.nombre == insumoBase }?.stockActual ?: 0.0
+                    val tieneStock = stockDisponible >= cantidadADescontar
+
                     if (!tieneStock) {
-                        Surface(
-                            color = MaterialTheme.colorScheme.errorContainer,
-                            shape = RoundedCornerShape(8.dp),
-                            modifier = Modifier.fillMaxWidth().padding(bottom = 12.dp)
-                        ) {
-                            Text(
-                                text = "⚠️ No hay stock suficiente (Disponible: $stockDisponible)",
-                                color = MaterialTheme.colorScheme.onErrorContainer,
-                                style = MaterialTheme.typography.labelSmall,
-                                modifier = Modifier.padding(8.dp)
-                            )
-                        }
+                        Text(
+                            text = "⚠️ No hay stock suficiente (Disponible: $stockDisponible)",
+                            color = MaterialTheme.colorScheme.error,
+                            style = MaterialTheme.typography.labelSmall,
+                            modifier = Modifier.padding(bottom = 8.dp)
+                        )
                     }
 
-                    Text("Detalles (papa, arroz, sin ensalada, etc.):", style = MaterialTheme.typography.labelMedium)
-                    Spacer(modifier = Modifier.height(4.dp))
+                    Text("Detalles (papa, arroz, etc.):", style = MaterialTheme.typography.labelMedium)
                     OutlinedTextField(
                         value = descripcionVenta,
                         onValueChange = { descripcionVenta = it },
-                        placeholder = { Text("Ej: con arroz, solo papa...") },
+                        placeholder = { Text("Ej: con arroz...") },
                         modifier = Modifier.fillMaxWidth(),
-                        shape = RoundedCornerShape(8.dp)
+                        shape = RoundedCornerShape(8.dp),
+                        enabled = tieneStock // Evita escribir si no hay stock
                     )
                 }
             },
+
             confirmButton = {
                 Button(
                     onClick = {
@@ -257,16 +256,21 @@ fun ReporteVentasScreen(viewModel: InventarioViewModel) {
 
     Column(modifier = Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background).padding(24.dp)) {
         Text("Ventas Realizadas", style = MaterialTheme.typography.headlineMedium, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.primary)
-        Text("Historial detallado con notas del cliente.", color = MaterialTheme.colorScheme.onBackground.copy(alpha = 0.7f))
+        Text("Historial detallado con hora y notas.", color = MaterialTheme.colorScheme.onBackground.copy(alpha = 0.7f))
         Spacer(modifier = Modifier.height(24.dp))
 
         if (ventas.isEmpty()) {
             Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-                Text("No hay ventas registradas aún.")
+                Text("No hay ventas hoy.")
             }
         } else {
             LazyColumn(verticalArrangement = Arrangement.spacedBy(12.dp)) {
                 items(ventas) { venta ->
+                    // Convertimos los milisegundos a hora legible (Ej: 08:30 PM)
+                    val horaFormateada = remember(venta.fecha) {
+                        java.text.SimpleDateFormat("hh:mm a", java.util.Locale.getDefault()).format(java.util.Date(venta.fecha))
+                    }
+
                     Card(
                         modifier = Modifier.fillMaxWidth(),
                         colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.4f)),
@@ -274,26 +278,20 @@ fun ReporteVentasScreen(viewModel: InventarioViewModel) {
                     ) {
                         Column(modifier = Modifier.padding(16.dp)) {
                             Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
-                                Text(venta.nombre, fontWeight = FontWeight.Bold, style = MaterialTheme.typography.titleMedium)
+                                Column {
+                                    Text(venta.nombre, fontWeight = FontWeight.Bold, style = MaterialTheme.typography.titleMedium)
+                                    // HORA DE LA VENTA
+                                    Text(text = "🕒 $horaFormateada", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.primary)
+                                }
                                 Text("S/ ${String.format("%.2f", venta.totalIngresos)}", color = MaterialTheme.colorScheme.primary, fontWeight = FontWeight.ExtraBold)
                             }
 
                             if (venta.notas.isNotBlank()) {
                                 Spacer(modifier = Modifier.height(8.dp))
-                                Surface(
-                                    color = MaterialTheme.colorScheme.secondaryContainer.copy(alpha = 0.5f),
-                                    shape = RoundedCornerShape(4.dp)
-                                ) {
-                                    Row(modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp), verticalAlignment = Alignment.CenterVertically) {
-                                        Icon(Icons.Default.Edit, null, modifier = Modifier.size(14.dp), tint = MaterialTheme.colorScheme.onSecondaryContainer)
-                                        Spacer(modifier = Modifier.width(6.dp))
-                                        Text(venta.notas, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSecondaryContainer, fontWeight = FontWeight.Medium)
-                                    }
+                                Surface(color = MaterialTheme.colorScheme.secondaryContainer.copy(alpha = 0.5f), shape = RoundedCornerShape(4.dp)) {
+                                    Text(text = "📝 ${venta.notas}", modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp), style = MaterialTheme.typography.bodySmall)
                                 }
                             }
-
-                            Spacer(modifier = Modifier.height(8.dp))
-                            Text("Cantidad: ${venta.totalCantidadVendida}", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f))
                         }
                     }
                 }

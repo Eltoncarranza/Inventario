@@ -35,19 +35,20 @@ interface InventarioDao {
     @Insert
     suspend fun registrarVenta(venta: Venta)
 
-    // REPORTE DE VENTAS CORREGIDO (Solo una vez y con los nombres de campos correctos)
+    // REPORTE DE VENTAS DEFINITIVO (Muestra cada venta con su hora y nota)
     @Query("""
         SELECT 
             i.nombre AS nombre, 
-            SUM(v.cantidadVendida) AS totalCantidadVendida, 
-            SUM(v.precioTotal) AS totalIngresos,
-            v.notas AS notas
+            v.cantidadVendida AS totalCantidadVendida, 
+            v.precioTotal AS totalIngresos,
+            v.notas AS notas,
+            v.fechaEnMilisegundos AS fecha
         FROM ventas AS v
         INNER JOIN insumos AS i ON v.insumoId = i.id
         WHERE v.fechaEnMilisegundos BETWEEN :fechaInicio AND :fechaFin
-        GROUP BY i.nombre, v.notas
+        ORDER BY v.fechaEnMilisegundos DESC
     """)
-    fun obtenerReporteVentasPeriodo(fechaInicio: Long, fechaFin: Long): Flow<List<ReporteVentaItem>>
+    fun obtenerReporteVentas(fechaInicio: Long, fechaFin: Long): Flow<List<ReporteVentaItem>>
 
     // --- COMPRAS ---
     @Insert
@@ -63,6 +64,7 @@ interface InventarioDao {
 
     @Query("SELECT SUM(costo) FROM compras WHERE fechaEnMilisegundos BETWEEN :fechaInicio AND :fechaFin")
     fun obtenerTotalGastadoPeriodo(fechaInicio: Long, fechaFin: Long): Flow<Double?>
+
     // --- CONSUMOS ---
     @Insert
     suspend fun registrarConsumo(consumo: Consumo)
