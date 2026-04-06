@@ -100,16 +100,16 @@ fun DashboardScreen(viewModel: InventarioViewModel) {
                                         }
                                         val nombreMinusculas = insumo.nombre.lowercase()
 
-                                        if ((nombreMinusculas.contains("maracuya") || nombreMinusculas.contains("maracuyá"))
-                                            && insumo.unidad == "kg") {
+                                    }
 
-                                            Button(
-                                                onClick = { insumoAConvertirMaracuya = insumo },
-                                                colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.primary),
-                                                modifier = Modifier.height(34.dp).padding(end = 8.dp)
-                                            ) {
-                                                Text("Preparar", fontSize = 10.sp, color = MaterialTheme.colorScheme.onPrimary)
-                                            }
+                                    val nombreMinus = insumo.nombre.lowercase()
+                                    if ((nombreMinus.contains("maracuya") || nombreMinus.contains("maracuyá")) && insumo.unidad == "kg") {
+                                        Button(
+                                            onClick = { insumoAConvertirMaracuya = insumo },
+                                            colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.primary),
+                                            modifier = Modifier.height(34.dp).padding(end = 8.dp)
+                                        ) {
+                                            Text("Preparar", fontSize = 10.sp)
                                         }
                                     }
 

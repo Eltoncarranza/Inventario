@@ -62,7 +62,9 @@ fun VentasScreen(viewModel: InventarioViewModel) {
     var tabIndex by remember { mutableStateOf(0) }
     val tabs = listOf("Menú", "Bebidas")
 
-    // Estados para el Diálogo de Confirmación
+    // Observamos el stock en tiempo real para las validaciones
+    val todosLosInsumos by viewModel.todosLosInsumos.collectAsState(initial = emptyList())
+
     var platoSeleccionado by remember { mutableStateOf<String?>(null) }
     var precioSeleccionado by remember { mutableStateOf(0.0) }
     var insumoBase by remember { mutableStateOf("") }
@@ -86,22 +88,19 @@ fun VentasScreen(viewModel: InventarioViewModel) {
 
         when (tabIndex) {
             0 -> SeccionMenu(onPlatoClick = { nombre, precio, insumo, cant ->
-                platoSeleccionado = nombre
-                precioSeleccionado = precio
-                insumoBase = insumo
-                cantidadADescontar = cant
+                platoSeleccionado = nombre; precioSeleccionado = precio; insumoBase = insumo; cantidadADescontar = cant
             })
             1 -> SeccionBebidas(onBebidaClick = { nombre, precio, insumo, cant ->
-                platoSeleccionado = nombre
-                precioSeleccionado = precio
-                insumoBase = insumo
-                cantidadADescontar = cant
+                platoSeleccionado = nombre; precioSeleccionado = precio; insumoBase = insumo; cantidadADescontar = cant
             })
         }
     }
 
-    // DIÁLOGO DE CONFIRMACIÓN (MENSAJE DE ALERTA)
     if (platoSeleccionado != null) {
+        // Buscamos el stock actual del insumo base antes de mostrar el diálogo
+        val stockDisponible = todosLosInsumos.find { it.nombre == insumoBase }?.stockActual ?: 0.0
+        val tieneStock = stockDisponible >= cantidadADescontar
+
         AlertDialog(
             onDismissRequest = {
                 platoSeleccionado = null
@@ -112,7 +111,24 @@ fun VentasScreen(viewModel: InventarioViewModel) {
                 Column {
                     Text("Producto: $platoSeleccionado", fontWeight = FontWeight.Medium)
                     Text("Precio: S/ ${String.format("%.2f", precioSeleccionado)}", color = MaterialTheme.colorScheme.primary)
+
                     Spacer(modifier = Modifier.height(16.dp))
+
+                    // --- VALIDACIÓN VISUAL DE STOCK ---
+                    if (!tieneStock) {
+                        Surface(
+                            color = MaterialTheme.colorScheme.errorContainer,
+                            shape = RoundedCornerShape(8.dp),
+                            modifier = Modifier.fillMaxWidth().padding(bottom = 12.dp)
+                        ) {
+                            Text(
+                                text = "⚠️ No hay stock suficiente (Disponible: $stockDisponible)",
+                                color = MaterialTheme.colorScheme.onErrorContainer,
+                                style = MaterialTheme.typography.labelSmall,
+                                modifier = Modifier.padding(8.dp)
+                            )
+                        }
+                    }
 
                     Text("Detalles (papa, arroz, sin ensalada, etc.):", style = MaterialTheme.typography.labelMedium)
                     Spacer(modifier = Modifier.height(4.dp))
@@ -136,14 +152,20 @@ fun VentasScreen(viewModel: InventarioViewModel) {
                         )
                         platoSeleccionado = null
                         descripcionVenta = ""
-                    }
-                ) { Text("Confirmar") }
+                    },
+                    // Deshabilitamos el botón si no hay stock
+                    enabled = tieneStock
+                ) {
+                    Text(if (tieneStock) "Confirmar Venta" else "Sin Stock")
+                }
             },
             dismissButton = {
                 TextButton(onClick = {
                     platoSeleccionado = null
                     descripcionVenta = ""
-                }) { Text("Cancelar") }
+                }) {
+                    Text("Cancelar")
+                }
             }
         )
     }
@@ -153,29 +175,13 @@ fun VentasScreen(viewModel: InventarioViewModel) {
 fun SeccionMenu(onPlatoClick: (String, Double, String, Double) -> Unit) {
     Column(modifier = Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
         Text("Platos Principales", style = MaterialTheme.typography.titleMedium, color = MaterialTheme.colorScheme.primary, fontWeight = FontWeight.Bold)
-
-        CardVenta("Caldo de Pollo", "S/ 5.00") {
-            onPlatoClick("Caldo de Pollo", 5.0, "Presas para Caldo", 1.0)
-        }
-
-        CardVenta("Salchipollo (Papa o Arroz)", "S/ 10.00") {
-            onPlatoClick("Salchipollo", 10.0, "Presas para Salchipollo", 1.0)
-        }
-
+        CardVenta("Caldo de Pollo", "S/ 5.00") { onPlatoClick("Caldo de Pollo", 5.0, "Presas para Caldo", 1.0) }
+        CardVenta("Salchipollo (Papa o Arroz)", "S/ 10.00") { onPlatoClick("Salchipollo", 10.0, "Presas para Salchipollo", 1.0) }
         HorizontalDivider(modifier = Modifier.padding(vertical = 8.dp))
         Text("Tallarines (Huesito)", style = MaterialTheme.typography.titleMedium, color = MaterialTheme.colorScheme.primary, fontWeight = FontWeight.Bold)
-
         Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-            Box(modifier = Modifier.weight(1f)) {
-                CardVenta("Económico", "S/ 5.0") {
-                    onPlatoClick("Tallarín Económico", 5.0, "Presas para Tallarín", 1.0)
-                }
-            }
-            Box(modifier = Modifier.weight(1f)) {
-                CardVenta("Extra", "S/ 8.0") {
-                    onPlatoClick("Tallarín Extra", 8.0, "Presas para Tallarín", 1.0)
-                }
-            }
+            Box(modifier = Modifier.weight(1f)) { CardVenta("Económico", "S/ 5.0") { onPlatoClick("Tallarín Económico", 5.0, "Presas para Tallarín", 1.0) } }
+            Box(modifier = Modifier.weight(1f)) { CardVenta("Extra", "S/ 8.0") { onPlatoClick("Tallarín Extra", 8.0, "Presas para Tallarín", 1.0) } }
         }
     }
 }
@@ -184,16 +190,9 @@ fun SeccionMenu(onPlatoClick: (String, Double, String, Double) -> Unit) {
 fun SeccionBebidas(onBebidaClick: (String, Double, String, Double) -> Unit) {
     Column(modifier = Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
         Text("Refresco de Maracuyá", style = MaterialTheme.typography.titleMedium, color = MaterialTheme.colorScheme.primary, fontWeight = FontWeight.Bold)
-
-        CardVenta("Vaso Pequeño", "S/ 1.00") {
-            onBebidaClick("Vaso Pequeño", 1.0, "Maracuyá", 0.25)
-        }
-        CardVenta("Vaso Grande", "S/ 1.50") {
-            onBebidaClick("Vaso Grande", 1.5, "Maracuyá", 0.50)
-        }
-        CardVenta("Jarra 1 Litro", "S/ 4.50") {
-            onBebidaClick("Jarra 1 Litro", 4.5, "Maracuyá", 1.0)
-        }
+        CardVenta("Vaso Pequeño", "S/ 1.00") { onBebidaClick("Vaso Pequeño", 1.0, "Maracuyá", 0.25) }
+        CardVenta("Vaso Grande", "S/ 1.50") { onBebidaClick("Vaso Grande", 1.5, "Maracuyá", 0.50) }
+        CardVenta("Jarra 1 Litro", "S/ 4.50") { onBebidaClick("Jarra 1 Litro", 4.5, "Maracuyá", 1.0) }
     }
 }
 
@@ -211,7 +210,46 @@ fun CardVenta(nombre: String, precio: String, onClick: () -> Unit) {
     }
 }
 
-// --- OTROS COMPONENTES (REPORTES, ALERTAS, ETC.) ---
+// --- CENTRO DE REPORTES ---
+@Composable
+fun ReportesMenuScreen(navController: NavController, viewModel: InventarioViewModel) {
+    val context = LocalContext.current
+    val hoy = System.currentTimeMillis()
+    val inicioDia = hoy - (hoy % (24 * 60 * 60 * 1000))
+
+    val ventasHoy by viewModel.obtenerReporteVentas(inicioDia, hoy).collectAsState(initial = emptyList())
+    val gastosHoy by viewModel.obtenerTotalGastadoPeriodo(inicioDia, hoy).collectAsState(initial = 0.0)
+
+    val totalVentas = ventasHoy.sumOf { it.totalIngresos }
+    val totalGastos = gastosHoy ?: 0.0
+
+    Column(modifier = Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background).padding(24.dp)) {
+        Text("Centro de Reportes", style = MaterialTheme.typography.headlineMedium, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.primary)
+        Text("Revisa tus números antes de cerrar", style = MaterialTheme.typography.bodySmall)
+        Spacer(modifier = Modifier.height(24.dp))
+
+        BotonRectangular("Consumo", "Mermas / Gastos", Icons.Default.List) { navController.navigate(Screen.ReporteConsumo.route) }
+        Spacer(modifier = Modifier.height(16.dp))
+        BotonRectangular("Compras", "Inversión realizada", Icons.Default.ShoppingCart) { navController.navigate(Screen.ReporteCompras.route) }
+        Spacer(modifier = Modifier.height(16.dp))
+        BotonRectangular("Ventas", "Ingresos detallados", Icons.Default.Check) { navController.navigate(Screen.ReporteVentas.route) }
+
+        Spacer(modifier = Modifier.weight(1f))
+
+        Button(
+            onClick = { enviarCierreWhatsApp(context, totalVentas, totalGastos) },
+            modifier = Modifier.fillMaxWidth().height(56.dp),
+            shape = RoundedCornerShape(12.dp),
+            colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.tertiary)
+        ) {
+            Icon(Icons.Default.Share, null)
+            Spacer(modifier = Modifier.width(8.dp))
+            Text("ENVIAR CIERRE POR WHATSAPP", fontWeight = FontWeight.ExtraBold)
+        }
+    }
+}
+
+// --- PANTALLA DETALLE DE VENTAS ---
 @Composable
 fun ReporteVentasScreen(viewModel: InventarioViewModel) {
     val unMesAtras = System.currentTimeMillis() - (30L * 24 * 60 * 60 * 1000)
@@ -231,7 +269,8 @@ fun ReporteVentasScreen(viewModel: InventarioViewModel) {
                 items(ventas) { venta ->
                     Card(
                         modifier = Modifier.fillMaxWidth(),
-                        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface)
+                        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.4f)),
+                        shape = RoundedCornerShape(12.dp)
                     ) {
                         Column(modifier = Modifier.padding(16.dp)) {
                             Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
@@ -239,22 +278,22 @@ fun ReporteVentasScreen(viewModel: InventarioViewModel) {
                                 Text("S/ ${String.format("%.2f", venta.totalIngresos)}", color = MaterialTheme.colorScheme.primary, fontWeight = FontWeight.ExtraBold)
                             }
 
-                            // Muestra la nota del pedido (ej. "Con arroz") si existe
                             if (venta.notas.isNotBlank()) {
-                                Spacer(modifier = Modifier.height(4.dp))
-                                Text(
-                                    text = "Nota: ${venta.notas}",
-                                    style = MaterialTheme.typography.bodySmall,
-                                    color = MaterialTheme.colorScheme.secondary,
-                                    fontWeight = FontWeight.Medium
-                                )
+                                Spacer(modifier = Modifier.height(8.dp))
+                                Surface(
+                                    color = MaterialTheme.colorScheme.secondaryContainer.copy(alpha = 0.5f),
+                                    shape = RoundedCornerShape(4.dp)
+                                ) {
+                                    Row(modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp), verticalAlignment = Alignment.CenterVertically) {
+                                        Icon(Icons.Default.Edit, null, modifier = Modifier.size(14.dp), tint = MaterialTheme.colorScheme.onSecondaryContainer)
+                                        Spacer(modifier = Modifier.width(6.dp))
+                                        Text(venta.notas, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSecondaryContainer, fontWeight = FontWeight.Medium)
+                                    }
+                                }
                             }
 
-                            Text(
-                                text = "Cant: ${venta.totalCantidadVendida}",
-                                style = MaterialTheme.typography.labelSmall,
-                                color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f)
-                            )
+                            Spacer(modifier = Modifier.height(8.dp))
+                            Text("Cantidad: ${venta.totalCantidadVendida}", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f))
                         }
                     }
                 }
@@ -263,144 +302,7 @@ fun ReporteVentasScreen(viewModel: InventarioViewModel) {
     }
 }
 
-@Composable
-fun EliminarInsumosScreen(viewModel: InventarioViewModel) {
-    val insumos by viewModel.todosLosInsumos.collectAsState(initial = emptyList())
-    var insumoAEliminar by remember { mutableStateOf<Insumo?>(null) }
-    var insumoAEditar by remember { mutableStateOf<Insumo?>(null) }
-    var editNombre by remember { mutableStateOf("") }
-    var editCosto by remember { mutableStateOf("") }
-
-    Column(modifier = Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background).padding(24.dp)) {
-        Text("Editar / Eliminar", style = MaterialTheme.typography.titleLarge, color = MaterialTheme.colorScheme.primary, fontWeight = FontWeight.Bold)
-        Spacer(modifier = Modifier.height(16.dp))
-
-        LazyColumn(verticalArrangement = Arrangement.spacedBy(12.dp)) {
-            items(insumos) { insumo ->
-                Card(modifier = Modifier.fillMaxWidth(), colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface)) {
-                    Row(modifier = Modifier.padding(16.dp).fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
-                        Column(modifier = Modifier.weight(1f)) {
-                            Text(insumo.nombre, fontWeight = FontWeight.Bold)
-                            Text("Costo: S/ ${insumo.costo}", color = MaterialTheme.colorScheme.primary, style = MaterialTheme.typography.bodySmall)
-                        }
-                        Row {
-                            IconButton(onClick = { insumoAEditar = insumo; editNombre = insumo.nombre; editCosto = insumo.costo.toString() }) {
-                                Icon(Icons.Default.Edit, "Editar", tint = MaterialTheme.colorScheme.primary)
-                            }
-                            IconButton(onClick = { insumoAEliminar = insumo }) {
-                                Icon(Icons.Default.Delete, "Eliminar", tint = MaterialTheme.colorScheme.error)
-                            }
-                        }
-                    }
-                }
-            }
-        }
-    }
-
-    if (insumoAEditar != null) {
-        AlertDialog(
-            onDismissRequest = { insumoAEditar = null },
-            title = { Text("Editar Insumo") },
-            text = {
-                Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
-                    OutlinedTextField(value = editNombre, onValueChange = { editNombre = it }, label = { Text("Nombre") })
-                    OutlinedTextField(value = editCosto, onValueChange = { editCosto = it }, label = { Text("Costo") }, keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number))
-                }
-            },
-            confirmButton = {
-                Button(onClick = {
-                    val c = editCosto.toDoubleOrNull() ?: 0.0
-                    viewModel.actualizarInsumo(insumoAEditar!!, editNombre, insumoAEditar!!.stockMinimo, c)
-                    insumoAEditar = null
-                }) { Text("Guardar") }
-            },
-            dismissButton = { TextButton(onClick = { insumoAEditar = null }) { Text("Cancelar") } }
-        )
-    }
-
-    if (insumoAEliminar != null) {
-        AlertDialog(
-            onDismissRequest = { insumoAEliminar = null },
-            title = { Text("Eliminar", color = MaterialTheme.colorScheme.error) },
-            text = { Text("¿Seguro que quieres eliminar '${insumoAEliminar!!.nombre}'?") },
-            confirmButton = {
-                Button(onClick = { viewModel.eliminarInsumoDefinitivo(insumoAEliminar!!); insumoAEliminar = null }, colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.error)) { Text("Eliminar") }
-            },
-            dismissButton = { TextButton(onClick = { insumoAEliminar = null }) { Text("Cancelar") } }
-        )
-    }
-}
-
-@Composable
-fun ConfigurarAlertasScreen(viewModel: InventarioViewModel) {
-    val insumos by viewModel.todosLosInsumos.collectAsState(initial = emptyList())
-    var insumoAEditar by remember { mutableStateOf<Insumo?>(null) }
-    var nuevoMinimo by remember { mutableStateOf("") }
-
-    Column(modifier = Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background).padding(24.dp)) {
-        Text("Fijar Alarma de Stock", style = MaterialTheme.typography.titleLarge, color = MaterialTheme.colorScheme.primary, fontWeight = FontWeight.Bold)
-        Spacer(modifier = Modifier.height(16.dp))
-
-        LazyColumn(verticalArrangement = Arrangement.spacedBy(12.dp)) {
-            items(insumos) { insumo ->
-                Card(modifier = Modifier.fillMaxWidth().clickable { insumoAEditar = insumo; nuevoMinimo = insumo.stockMinimo.toString() }, colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface)) {
-                    Row(modifier = Modifier.padding(16.dp).fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
-                        Column {
-                            Text(insumo.nombre, fontWeight = FontWeight.Bold)
-                            Text("Avisar a los: ${insumo.stockMinimo}", style = MaterialTheme.typography.bodySmall)
-                        }
-                        Icon(Icons.Default.Notifications, null, tint = MaterialTheme.colorScheme.primary)
-                    }
-                }
-            }
-        }
-    }
-
-    if (insumoAEditar != null) {
-        AlertDialog(
-            onDismissRequest = { insumoAEditar = null },
-            title = { Text("Ajustar Alarma") },
-            text = { OutlinedTextField(value = nuevoMinimo, onValueChange = { nuevoMinimo = it }, label = { Text("Mínimo") }, keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number)) },
-            confirmButton = {
-                Button(onClick = {
-                    val m = nuevoMinimo.toDoubleOrNull() ?: 0.0
-                    viewModel.actualizarInsumo(insumoAEditar!!, insumoAEditar!!.nombre, m, insumoAEditar!!.costo)
-                    insumoAEditar = null
-                }) { Text("Guardar") }
-            },
-            dismissButton = { TextButton(onClick = { insumoAEditar = null }) { Text("Cancelar") } }
-        )
-    }
-}
-
-@Composable
-fun PerfilScreen() {
-    Column(modifier = Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background).padding(24.dp), horizontalAlignment = Alignment.CenterHorizontally) {
-        Text("Perfil del Local", style = MaterialTheme.typography.headlineMedium, color = MaterialTheme.colorScheme.primary, fontWeight = FontWeight.Bold)
-        Spacer(modifier = Modifier.height(24.dp))
-        OutlinedTextField(value = "Antojitos Melanie", onValueChange = {}, label = { Text("Nombre") }, modifier = Modifier.fillMaxWidth())
-        OutlinedTextField(value = "Laredo, Trujillo", onValueChange = {}, label = { Text("Dirección") }, modifier = Modifier.fillMaxWidth())
-        Spacer(modifier = Modifier.height(24.dp))
-        Text("GestionP - Cibertec", style = MaterialTheme.typography.bodySmall)
-    }
-}
-
-
-
-@Composable
-fun BotonRectangular(titulo: String, subtitulo: String, icono: ImageVector, onClick: () -> Unit) {
-    Card(modifier = Modifier.fillMaxWidth().clickable { onClick() }, colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface)) {
-        Row(modifier = Modifier.padding(20.dp).fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
-            Icon(icono, null, tint = MaterialTheme.colorScheme.primary, modifier = Modifier.size(40.dp))
-            Spacer(modifier = Modifier.width(16.dp))
-            Column {
-                Text(titulo, fontWeight = FontWeight.Bold, style = MaterialTheme.typography.titleLarge)
-                Text(subtitulo, style = MaterialTheme.typography.bodyMedium)
-            }
-        }
-    }
-}
-
+// --- OTROS COMPONENTES ---
 @Composable
 fun ReporteConsumoScreen(viewModel: InventarioViewModel) {
     val unMesAtras = System.currentTimeMillis() - (30L * 24 * 60 * 60 * 1000)
@@ -427,98 +329,6 @@ fun ReporteConsumoScreen(viewModel: InventarioViewModel) {
                 }
             }
         }
-    }
-}
-@Composable
-fun ReportesMenuScreen(navController: NavController, viewModel: InventarioViewModel) {
-    val context = LocalContext.current
-
-    // Filtro de tiempo: Desde las 00:00 de hoy hasta ahora
-    val hoy = System.currentTimeMillis()
-    val inicioDia = hoy - (hoy % (24 * 60 * 60 * 1000))
-
-    // Recolectamos los datos de la base de datos en tiempo real
-    val ventasHoy by viewModel.obtenerReporteVentas(inicioDia, hoy).collectAsState(initial = emptyList())
-    val gastosHoy by viewModel.obtenerTotalGastadoPeriodo(inicioDia, hoy).collectAsState(initial = 0.0)
-
-    val totalVentas = ventasHoy.sumOf { it.totalIngresos }
-    val totalGastos = gastosHoy ?: 0.0
-
-    Column(modifier = Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background).padding(24.dp)) {
-        Text("Centro de Reportes", style = MaterialTheme.typography.headlineMedium, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.primary)
-        Text("Revisa tus números antes de cerrar", style = MaterialTheme.typography.bodySmall)
-        Spacer(modifier = Modifier.height(24.dp))
-
-        // Botones de navegación a los reportes detallados
-        BotonRectangular("Consumo", "Mermas / Gastos", Icons.Default.List) { navController.navigate(Screen.ReporteConsumo.route) }
-        Spacer(modifier = Modifier.height(16.dp))
-        BotonRectangular("Compras", "Inversión realizada", Icons.Default.ShoppingCart) { navController.navigate(Screen.ReporteCompras.route) }
-        Spacer(modifier = Modifier.height(16.dp))
-        BotonRectangular("Ventas", "Ingresos detallados", Icons.Default.Check) { navController.navigate(Screen.ReporteVentas.route) }
-
-        Spacer(modifier = Modifier.weight(1f))
-
-        // BOTÓN DE CIERRE POR WHATSAPP (Color Morado/Tertiary)
-        Button(
-            onClick = { enviarCierreWhatsApp(context, totalVentas, totalGastos) },
-            modifier = Modifier.fillMaxWidth().height(56.dp),
-            shape = RoundedCornerShape(12.dp),
-            colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.tertiary)
-        ) {
-            Icon(Icons.Default.Share, null)
-            Spacer(modifier = Modifier.width(8.dp))
-            Text("ENVIAR CIERRE POR WHATSAPP", fontWeight = FontWeight.ExtraBold)
-        }
-    }
-}
-@Composable
-fun AgregarComprasScreen(viewModel: InventarioViewModel) {
-    val insumos by viewModel.todosLosInsumos.collectAsState(initial = emptyList())
-    var insumoAComprar by remember { mutableStateOf<Insumo?>(null) }
-    var cantidadText by remember { mutableStateOf("") }
-    var costoText by remember { mutableStateOf("") }
-
-    Column(modifier = Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background).padding(24.dp)) {
-        Text("Registrar Compra", style = MaterialTheme.typography.headlineMedium, color = MaterialTheme.colorScheme.primary, fontWeight = FontWeight.Bold)
-        Spacer(modifier = Modifier.height(16.dp))
-
-        LazyColumn(verticalArrangement = Arrangement.spacedBy(12.dp)) {
-            items(insumos) { insumo ->
-                Card(modifier = Modifier.fillMaxWidth().clickable { insumoAComprar = insumo }, colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface)) {
-                    Row(modifier = Modifier.padding(16.dp).fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
-                        Column {
-                            Text(insumo.nombre, fontWeight = FontWeight.Bold)
-                            Text("Stock: ${insumo.stockActual}", color = MaterialTheme.colorScheme.primary, style = MaterialTheme.typography.bodySmall)
-                        }
-                        Icon(Icons.Default.Add, null, tint = MaterialTheme.colorScheme.primary)
-                    }
-                }
-            }
-        }
-    }
-
-    if (insumoAComprar != null) {
-        AlertDialog(
-            onDismissRequest = { insumoAComprar = null },
-            title = { Text("Comprar ${insumoAComprar!!.nombre}") },
-            text = {
-                Column {
-                    OutlinedTextField(value = cantidadText, onValueChange = { cantidadText = it }, label = { Text("Cantidad") }, keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number))
-                    OutlinedTextField(value = costoText, onValueChange = { costoText = it }, label = { Text("Costo Total") }, keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number))
-                }
-            },
-            confirmButton = {
-                Button(onClick = {
-                    val c = cantidadText.toDoubleOrNull() ?: 0.0
-                    val cost = costoText.toDoubleOrNull() ?: 0.0
-                    if (c > 0 && cost > 0) {
-                        viewModel.recargarInsumo(insumoAComprar!!, c, cost)
-                        insumoAComprar = null; cantidadText = ""; costoText = ""
-                    }
-                }) { Text("Guardar") }
-            },
-            dismissButton = { TextButton(onClick = { insumoAComprar = null }) { Text("Cancelar") } }
-        )
     }
 }
 
@@ -550,6 +360,86 @@ fun ReporteComprasScreen(viewModel: InventarioViewModel) {
 }
 
 @Composable
+fun BotonRectangular(titulo: String, subtitulo: String, icono: ImageVector, onClick: () -> Unit) {
+    Card(modifier = Modifier.fillMaxWidth().clickable { onClick() }, colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface)) {
+        Row(modifier = Modifier.padding(20.dp).fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+            Icon(icono, null, tint = MaterialTheme.colorScheme.primary, modifier = Modifier.size(40.dp))
+            Spacer(modifier = Modifier.width(16.dp))
+            Column {
+                Text(titulo, fontWeight = FontWeight.Bold, style = MaterialTheme.typography.titleLarge)
+                Text(subtitulo, style = MaterialTheme.typography.bodyMedium)
+            }
+        }
+    }
+}
+
+@Composable
+fun EliminarInsumosScreen(viewModel: InventarioViewModel) {
+    val insumos by viewModel.todosLosInsumos.collectAsState(initial = emptyList())
+    var insumoAEliminar by remember { mutableStateOf<Insumo?>(null) }
+    var insumoAEditar by remember { mutableStateOf<Insumo?>(null) }
+    var editNombre by remember { mutableStateOf("") }
+    var editCosto by remember { mutableStateOf("") }
+
+    Column(modifier = Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background).padding(24.dp)) {
+        Text("Editar / Eliminar", style = MaterialTheme.typography.titleLarge, color = MaterialTheme.colorScheme.primary, fontWeight = FontWeight.Bold)
+        Spacer(modifier = Modifier.height(16.dp))
+        LazyColumn(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+            items(insumos) { insumo ->
+                Card(modifier = Modifier.fillMaxWidth(), colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface)) {
+                    Row(modifier = Modifier.padding(16.dp).fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
+                        Column(modifier = Modifier.weight(1f)) {
+                            Text(insumo.nombre, fontWeight = FontWeight.Bold)
+                            Text("Costo: S/ ${insumo.costo}", color = MaterialTheme.colorScheme.primary, style = MaterialTheme.typography.bodySmall)
+                        }
+                        Row {
+                            IconButton(onClick = { insumoAEditar = insumo; editNombre = insumo.nombre; editCosto = insumo.costo.toString() }) { Icon(Icons.Default.Edit, "Editar", tint = MaterialTheme.colorScheme.primary) }
+                            IconButton(onClick = { insumoAEliminar = insumo }) { Icon(Icons.Default.Delete, "Eliminar", tint = MaterialTheme.colorScheme.error) }
+                        }
+                    }
+                }
+            }
+        }
+    }
+    if (insumoAEditar != null) {
+        AlertDialog(onDismissRequest = { insumoAEditar = null }, title = { Text("Editar") }, text = {
+            Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                OutlinedTextField(value = editNombre, onValueChange = { editNombre = it }, label = { Text("Nombre") })
+                OutlinedTextField(value = editCosto, onValueChange = { editCosto = it }, label = { Text("Costo") }, keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number))
+            }
+        }, confirmButton = { Button(onClick = { val c = editCosto.toDoubleOrNull() ?: 0.0; viewModel.actualizarInsumo(insumoAEditar!!, editNombre, insumoAEditar!!.stockMinimo, c); insumoAEditar = null }) { Text("Guardar") } }, dismissButton = { TextButton(onClick = { insumoAEditar = null }) { Text("Cancelar") } })
+    }
+    if (insumoAEliminar != null) {
+        AlertDialog(onDismissRequest = { insumoAEliminar = null }, title = { Text("Eliminar") }, text = { Text("¿Eliminar ${insumoAEliminar!!.nombre}?") }, confirmButton = { Button(onClick = { viewModel.eliminarInsumoDefinitivo(insumoAEliminar!!); insumoAEliminar = null }, colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.error)) { Text("Eliminar") } }, dismissButton = { TextButton(onClick = { insumoAEliminar = null }) { Text("Cancelar") } })
+    }
+}
+
+@Composable
+fun ConfigurarAlertasScreen(viewModel: InventarioViewModel) {
+    val insumos by viewModel.todosLosInsumos.collectAsState(initial = emptyList())
+    var insumoAEditar by remember { mutableStateOf<Insumo?>(null) }
+    var nuevoMinimo by remember { mutableStateOf("") }
+
+    Column(modifier = Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background).padding(24.dp)) {
+        Text("Fijar Alarma de Stock", style = MaterialTheme.typography.titleLarge, color = MaterialTheme.colorScheme.primary, fontWeight = FontWeight.Bold)
+        Spacer(modifier = Modifier.height(16.dp))
+        LazyColumn(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+            items(insumos) { insumo ->
+                Card(modifier = Modifier.fillMaxWidth().clickable { insumoAEditar = insumo; nuevoMinimo = insumo.stockMinimo.toString() }, colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface)) {
+                    Row(modifier = Modifier.padding(16.dp).fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
+                        Column { Text(insumo.nombre, fontWeight = FontWeight.Bold); Text("Avisar a los: ${insumo.stockMinimo}", style = MaterialTheme.typography.bodySmall) }
+                        Icon(Icons.Default.Notifications, null, tint = MaterialTheme.colorScheme.primary)
+                    }
+                }
+            }
+        }
+    }
+    if (insumoAEditar != null) {
+        AlertDialog(onDismissRequest = { insumoAEditar = null }, title = { Text("Ajustar Alarma") }, text = { OutlinedTextField(value = nuevoMinimo, onValueChange = { nuevoMinimo = it }, label = { Text("Mínimo") }, keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number)) }, confirmButton = { Button(onClick = { val m = nuevoMinimo.toDoubleOrNull() ?: 0.0; viewModel.actualizarInsumo(insumoAEditar!!, insumoAEditar!!.nombre, m, insumoAEditar!!.costo); insumoAEditar = null }) { Text("Guardar") } }, dismissButton = { TextButton(onClick = { insumoAEditar = null }) { Text("Cancelar") } })
+    }
+}
+
+@Composable
 fun AlertasScreen(viewModel: InventarioViewModel) {
     val insumos by viewModel.todosLosInsumos.collectAsState(initial = emptyList())
     val insumosPorAgotar = insumos.filter { it.stockActual <= it.stockMinimo }
@@ -559,7 +449,6 @@ fun AlertasScreen(viewModel: InventarioViewModel) {
             Icon(Icons.Default.Warning, "Alerta", tint = MaterialTheme.colorScheme.error, modifier = Modifier.size(36.dp).padding(end = 12.dp))
             Text("Stock Crítico", style = MaterialTheme.typography.headlineMedium, fontWeight = FontWeight.Bold)
         }
-
         if (insumosPorAgotar.isEmpty()) {
             Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) { Text("Stock suficiente", textAlign = TextAlign.Center) }
         } else {
@@ -574,5 +463,66 @@ fun AlertasScreen(viewModel: InventarioViewModel) {
                 }
             }
         }
+    }
+}
+
+@Composable
+fun PerfilScreen() {
+    Column(modifier = Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background).padding(24.dp), horizontalAlignment = Alignment.CenterHorizontally) {
+        Text("Perfil del Local", style = MaterialTheme.typography.headlineMedium, color = MaterialTheme.colorScheme.primary, fontWeight = FontWeight.Bold)
+        Spacer(modifier = Modifier.height(24.dp))
+        OutlinedTextField(value = "Antojitos Melanie", onValueChange = {}, label = { Text("Nombre") }, modifier = Modifier.fillMaxWidth())
+        OutlinedTextField(value = "Laredo, Trujillo", onValueChange = {}, label = { Text("Dirección") }, modifier = Modifier.fillMaxWidth())
+        Spacer(modifier = Modifier.height(24.dp))
+        Text("GestionP - Cibertec", style = MaterialTheme.typography.bodySmall)
+    }
+}
+
+@Composable
+fun AgregarComprasScreen(viewModel: InventarioViewModel) {
+    val insumos by viewModel.todosLosInsumos.collectAsState(initial = emptyList())
+    var insumoAComprar by remember { mutableStateOf<Insumo?>(null) }
+    var cantidadText by remember { mutableStateOf("") }
+    var costoText by remember { mutableStateOf("") }
+
+    Column(modifier = Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background).padding(24.dp)) {
+        Text("Registrar Compra", style = MaterialTheme.typography.headlineMedium, color = MaterialTheme.colorScheme.primary, fontWeight = FontWeight.Bold)
+        Spacer(modifier = Modifier.height(16.dp))
+        LazyColumn(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+            items(insumos) { insumo ->
+                Card(modifier = Modifier.fillMaxWidth().clickable { insumoAComprar = insumo }, colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface)) {
+                    Row(modifier = Modifier.padding(16.dp).fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
+                        Column {
+                            Text(insumo.nombre, fontWeight = FontWeight.Bold)
+                            Text("Stock: ${insumo.stockActual}", color = MaterialTheme.colorScheme.primary, style = MaterialTheme.typography.bodySmall)
+                        }
+                        Icon(Icons.Default.Add, null, tint = MaterialTheme.colorScheme.primary)
+                    }
+                }
+            }
+        }
+    }
+    if (insumoAComprar != null) {
+        AlertDialog(
+            onDismissRequest = { insumoAComprar = null },
+            title = { Text("Comprar ${insumoAComprar!!.nombre}") },
+            text = {
+                Column {
+                    OutlinedTextField(value = cantidadText, onValueChange = { cantidadText = it }, label = { Text("Cantidad") }, keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number))
+                    OutlinedTextField(value = costoText, onValueChange = { costoText = it }, label = { Text("Costo Total") }, keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number))
+                }
+            },
+            confirmButton = {
+                Button(onClick = {
+                    val c = cantidadText.toDoubleOrNull() ?: 0.0
+                    val cost = costoText.toDoubleOrNull() ?: 0.0
+                    if (c > 0 && cost > 0) {
+                        viewModel.recargarInsumo(insumoAComprar!!, c, cost)
+                        insumoAComprar = null; cantidadText = ""; costoText = ""
+                    }
+                }) { Text("Guardar") }
+            },
+            dismissButton = { TextButton(onClick = { insumoAComprar = null }) { Text("Cancelar") } }
+        )
     }
 }

@@ -38,28 +38,28 @@ class InventarioViewModel(private val dao: InventarioDao) : ViewModel() {
     fun registrarVentaPlato(
         nombreInsumoBase: String,
         precioVenta: Double,
-        cantidadADescontar: Double = 1.0, // <-- Ahora sí existe este parámetro
-        notas: String = ""               // <-- Para las notas de "arroz", "papa", etc.
+        cantidadADescontar: Double = 1.0,
+        notas: String = ""
     ) {
         viewModelScope.launch {
+            // Buscamos el insumo por nombre (Ej: "Presas para Salchipollo")
             val insumo = dao.buscarInsumoPorNombre(nombreInsumoBase)
 
-            // Verificamos que el insumo exista y tenga stock suficiente
             if (insumo != null && insumo.stockActual >= cantidadADescontar) {
                 val fecha = System.currentTimeMillis()
 
-                // 1. Registramos la venta (con el campo 'notas' si ya actualizaste tu entidad Venta)
+                // 1. REGISTRO DE VENTA (IMPORTANTE: Pasar el parámetro 'notas')
                 dao.registrarVenta(
                     Venta(
                         insumoId = insumo.id,
                         cantidadVendida = cantidadADescontar,
                         precioTotal = precioVenta,
                         fechaEnMilisegundos = fecha,
-                        // notas = notas // Descomenta esto cuando actualices tu data class Venta
+                        notas = notas // <-- AQUÍ: Ya no debe estar comentado
                     )
                 )
 
-                // 2. Registramos el consumo para el reporte
+                // 2. REGISTRO DE CONSUMO (Para saber qué se gastó hoy)
                 dao.registrarConsumo(
                     Consumo(
                         insumoId = insumo.id,
@@ -68,7 +68,7 @@ class InventarioViewModel(private val dao: InventarioDao) : ViewModel() {
                     )
                 )
 
-                // 3. Restamos el stock exacto
+                // 3. ACTUALIZACIÓN DE STOCK (Resta las presas o litros)
                 dao.restarStock(insumo.id, cantidadADescontar)
             }
         }
