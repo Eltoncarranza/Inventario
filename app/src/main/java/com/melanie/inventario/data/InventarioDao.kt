@@ -70,4 +70,13 @@ interface InventarioDao {
         GROUP BY nombreInsumo, unidad
     """)
     fun obtenerReporteComprasPeriodo(fechaInicio: Long, fechaFin: Long): Flow<List<ReporteCompraItem>>
+
+    @Query("""
+    SELECT i.nombre as nombre, i.unidad as unidad, SUM(c.cantidadUsada) as totalConsumido
+    FROM consumos c
+    INNER JOIN insumos i ON c.insumoId = i.id
+    WHERE c.fechaEnMilisegundos BETWEEN :fechaInicio AND :fechaFin
+    GROUP BY i.id
+""")
+    fun obtenerReporteConsumoPeriodo(fechaInicio: Long, fechaFin: Long): Flow<List<ReporteConsumoItem>>
 }

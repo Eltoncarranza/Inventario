@@ -1,6 +1,5 @@
 package com.melanie.inventario.viewmodel
 
-
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.viewModelScope
@@ -9,6 +8,7 @@ import com.melanie.inventario.data.Consumo
 import com.melanie.inventario.data.Insumo
 import com.melanie.inventario.data.InventarioDao
 import com.melanie.inventario.data.ReporteCompraItem
+import com.melanie.inventario.data.ReporteConsumoItem
 import com.melanie.inventario.data.ReporteVentaItem
 import com.melanie.inventario.data.Venta
 import kotlinx.coroutines.flow.Flow
@@ -28,52 +28,34 @@ class InventarioViewModel(private val dao: InventarioDao) : ViewModel() {
                 stockMinimo = stockMinimo
             ))
         }
-
     }
 
-    // NUEVO: Función inteligente de Punto de Venta
+    // REGISTRO DE VENTAS (Con descuento automático de stock y registro de consumo)
     fun registrarVentaPlato(nombreInsumoBase: String, precioVenta: Double) {
         viewModelScope.launch {
-            // Buscamos la "caja" de donde sacar la presa (ej. "Presas para Salchipollo")
             val insumo = dao.buscarInsumoPorNombre(nombreInsumoBase)
-
-            // Si la caja existe y tiene al menos 1 presa...
             if (insumo != null && insumo.stockActual >= 1) {
                 val fecha = System.currentTimeMillis()
 
-                dao.registrarVenta(
-                    Venta(
-                        insumoId = insumo.id,
-                        cantidadVendida = 1.0,
-                        precioTotal = precioVenta,
-                        fechaEnMilisegundos = fecha
-                    )
-                )
+                // 1. Registra el ingreso de dinero
+                dao.registrarVenta(Venta(insumoId = insumo.id, cantidadVendida = 1.0, precioTotal = precioVenta, fechaEnMilisegundos = fecha))
 
-                // 2. Le restamos 1 presa al inventario automáticamente
-                val stockRestante = insumo.stockActual - 1.0
-                if (stockRestante <= 0) {
-                    dao.restarStock(insumo.id, insumo.stockActual)
-                } else {
-                    dao.restarStock(insumo.id, 1.0)
-                }
+                // 2. Registra la salida para el reporte de consumo
+                dao.registrarConsumo(Consumo(insumoId = insumo.id, cantidadUsada = 1.0, fechaEnMilisegundos = fecha))
+
+                // 3. Resta del inventario
+                dao.restarStock(insumo.id, 1.0)
             }
         }
     }
 
-    // Para visualizar el gráfico de ventas después
-    fun obtenerReporteVentas(fechaInicio: Long, fechaFin: Long): Flow<List<ReporteVentaItem>> {
-        return dao.obtenerReporteVentasPeriodo(fechaInicio, fechaFin)
-    }
+    // REGISTRO DE CONSUMO MANUAL (Mermas o gastos directos)
     fun registrarConsumo(insumo: Insumo, cantidadAUsar: Double) {
         viewModelScope.launch {
             val fechaActual = System.currentTimeMillis()
-
             dao.registrarConsumo(Consumo(insumoId = insumo.id, cantidadUsada = cantidadAUsar, fechaEnMilisegundos = fechaActual))
 
             val stockRestante = insumo.stockActual - cantidadAUsar
-
-            // CAMBIO: Ya no lo eliminamos. Si se acaba, lo dejamos exactamente en 0.
             if (stockRestante <= 0) {
                 dao.restarStock(insumo.id, insumo.stockActual)
             } else {
@@ -81,106 +63,78 @@ class InventarioViewModel(private val dao: InventarioDao) : ViewModel() {
             }
         }
     }
+
+    // REGISTRO DE COMPRAS (Suma al stock y guarda en reporte de gastos)
+    fun recargarInsumo(insumo: Insumo, cantidadComprada: Double, costoCompra: Double) {
+        viewModelScope.launch {
+            val fechaActual = System.currentTimeMillis()
+            dao.registrarCompra(Compra(nombreInsumo = insumo.nombre, unidad = insumo.unidad, cantidad = cantidadComprada, costo = costoCompra, fechaEnMilisegundos = fechaActual))
+            dao.recargarStock(insumo.id, cantidadComprada, costoCompra)
+        }
+    }
+
+    // --- FUNCIONES DE REPORTES (Las que pedía la pantalla) ---
+    fun obtenerReporteConsumo(fechaInicio: Long, fechaFin: Long): Flow<List<ReporteConsumoItem>> {
+        return dao.obtenerReporteConsumoPeriodo(fechaInicio, fechaFin)
+    }
+
+    fun obtenerReporteCompras(fechaInicio: Long, fechaFin: Long): Flow<List<ReporteCompraItem>> {
+        return dao.obtenerReporteComprasPeriodo(fechaInicio, fechaFin)
+    }
+
+    fun obtenerReporteVentas(fechaInicio: Long, fechaFin: Long): Flow<List<ReporteVentaItem>> {
+        return dao.obtenerReporteVentasPeriodo(fechaInicio, fechaFin)
+    }
+
+    // --- GESTIÓN DE INSUMOS ---
     fun actualizarInsumo(insumoActual: Insumo, nuevoNombre: String, nuevoStockMinimo: Double, nuevoCosto: Double) {
         viewModelScope.launch {
-            val insumoModificado = insumoActual.copy(
-                nombre = nuevoNombre,
-                stockMinimo = nuevoStockMinimo,
-                costo = nuevoCosto
-            )
+            val insumoModificado = insumoActual.copy(nombre = nuevoNombre, stockMinimo = nuevoStockMinimo, costo = nuevoCosto)
             dao.actualizarInsumo(insumoModificado)
         }
     }
+
     fun eliminarInsumoDefinitivo(insumo: Insumo) {
         viewModelScope.launch {
             dao.eliminarInsumo(insumo.id)
         }
     }
 
-    // NUEVA FUNCIÓN: Para agregar compras diarias (como el kilo de arroz)
-    // 1. REEMPLAZA tu actual 'recargarInsumo' por esta:
-    fun recargarInsumo(insumo: Insumo, cantidadComprada: Double, costoCompra: Double) {
-        viewModelScope.launch {
-            val fechaActual = System.currentTimeMillis()
-
-            // Registramos la compra para tu nuevo reporte
-            dao.registrarCompra(
-                Compra(
-                    nombreInsumo = insumo.nombre, unidad = insumo.unidad,
-                    cantidad = cantidadComprada, costo = costoCompra,
-                    fechaEnMilisegundos = fechaActual
-                )
-            )
-
-            // Sumamos el stock físicamente al inventario
-            dao.recargarStock(insumo.id, cantidadComprada, costoCompra)
-        }
-    }
-
-    // 2. AGREGA esta nueva función para el reporte:
-    fun obtenerReporteCompras(fechaInicio: Long, fechaFin: Long): Flow<List<ReporteCompraItem>> {
-        return dao.obtenerReporteComprasPeriodo(fechaInicio, fechaFin)
-    }
     // --- FUNCIÓN PARA DESPRESAR POLLO ---
-    fun despresarPollo(
-        insumoPolloEntero: Insumo,
-        kilosUsados: Double,
-        presasCaldo: Int,
-        presasSalchipollo: Int
-    ) {
+    fun despresarPollo(insumoPolloEntero: Insumo, kilosUsados: Double, presasCaldo: Int, presasSalchipollo: Int) {
         viewModelScope.launch {
-            // 1. Restamos los kilos usados del pollo entero (usando tu regla automática)
-            val stockRestante = insumoPolloEntero.stockActual - kilosUsados
-            if (stockRestante <= 0) {
-                dao.eliminarInsumo(insumoPolloEntero.id)
-            } else {
-                dao.restarStock(insumoPolloEntero.id, kilosUsados)
-            }
+            val fecha = System.currentTimeMillis()
 
-            // 2. Gestionamos las presas para el Caldo de Pollo
+            // 1. Restar del pollo entero y registrar consumo del pollo pesado
+            dao.registrarConsumo(Consumo(insumoId = insumoPolloEntero.id, cantidadUsada = kilosUsados, fechaEnMilisegundos = fecha))
+            dao.restarStock(insumoPolloEntero.id, kilosUsados)
+
+            // 2. Gestionar presas para Caldo
             if (presasCaldo > 0) {
                 val nombreCaldo = "Presas para Caldo"
-                val insumoCaldoExistente = dao.buscarInsumoPorNombre(nombreCaldo)
-
-                if (insumoCaldoExistente != null) {
-                    // Si ya existe la categoría, le sumamos las nuevas presas
-                    dao.sumarStock(insumoCaldoExistente.id, presasCaldo.toDouble())
+                val existente = dao.buscarInsumoPorNombre(nombreCaldo)
+                if (existente != null) {
+                    dao.sumarStock(existente.id, presasCaldo.toDouble())
                 } else {
-                    // Si no existe, creamos la categoría nueva
-                    // Repartimos proporcionalmente el costo del pollo entero a estas presas
-                    val proporcionCosto = (presasCaldo.toDouble() / (presasCaldo + presasSalchipollo)) * (insumoPolloEntero.costo * (kilosUsados / insumoPolloEntero.stockActual))
-
-                    dao.agregarInsumo(Insumo(
-                        nombre = nombreCaldo,
-                        unidad = "Unidades",
-                        stockActual = presasCaldo.toDouble(),
-                        costo = if(proporcionCosto.isNaN()) 0.0 else proporcionCosto
-                    ))
+                    dao.agregarInsumo(Insumo(nombre = nombreCaldo, unidad = "Unidades", stockActual = presasCaldo.toDouble(), costo = 0.0, stockMinimo = 5.0))
                 }
             }
 
-            // 3. Gestionamos las presas para el Salchipollo
+            // 3. Gestionar presas para Salchipollo
             if (presasSalchipollo > 0) {
-                val nombreSalchipollo = "Presas para Salchipollo"
-                val insumoSalchipolloExistente = dao.buscarInsumoPorNombre(nombreSalchipollo)
-
-                if (insumoSalchipolloExistente != null) {
-                    dao.sumarStock(insumoSalchipolloExistente.id, presasSalchipollo.toDouble())
+                val nombreSalchi = "Presas para Salchipollo"
+                val existente = dao.buscarInsumoPorNombre(nombreSalchi)
+                if (existente != null) {
+                    dao.sumarStock(existente.id, presasSalchipollo.toDouble())
                 } else {
-                    val proporcionCosto = (presasSalchipollo.toDouble() / (presasCaldo + presasSalchipollo)) * (insumoPolloEntero.costo * (kilosUsados / insumoPolloEntero.stockActual))
-
-                    dao.agregarInsumo(Insumo(
-                        nombre = nombreSalchipollo,
-                        unidad = "Unidades",
-                        stockActual = presasSalchipollo.toDouble(),
-                        costo = if(proporcionCosto.isNaN()) 0.0 else proporcionCosto
-                    ))
+                    dao.agregarInsumo(Insumo(nombre = nombreSalchi, unidad = "Unidades", stockActual = presasSalchipollo.toDouble(), costo = 0.0, stockMinimo = 5.0))
                 }
             }
         }
     }
 }
 
+// FACTORY
 class InventarioViewModelFactory(private val dao: InventarioDao) : ViewModelProvider.Factory {
     override fun <T : ViewModel> create(modelClass: Class<T>): T {
         if (modelClass.isAssignableFrom(InventarioViewModel::class.java)) {
