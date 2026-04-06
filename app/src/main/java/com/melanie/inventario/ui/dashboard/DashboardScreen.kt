@@ -23,26 +23,30 @@ import com.melanie.inventario.viewmodel.InventarioViewModel
 fun DashboardScreen(viewModel: InventarioViewModel) {
     val insumos by viewModel.todosLosInsumos.collectAsState(initial = emptyList())
 
-    // Variables para Nuevo Insumo
+    // --- VARIABLES DE ESTADO ---
+    // Nuevo Insumo
     var mostrarDialogoAgregar by remember { mutableStateOf(false) }
     var nombreText by remember { mutableStateOf("") }
     var unidadSeleccionada by remember { mutableStateOf("kg") }
     val opcionesUnidad = listOf("kg", "Litros", "Unidades")
-    var cantidadText by remember { mutableStateOf("") }
-    var costoText by remember { mutableStateOf("") }
-
     var errorNombre by remember { mutableStateOf(false) }
-    var errorCostoNuevo by remember { mutableStateOf(false) }
-
-    // Variables para Consumo Rápido (-)
+    var insumoAConvertirMaracuya by remember { mutableStateOf<Insumo?>(null) }
+    var kilosMaracuyaText by remember { mutableStateOf("") }
+    var litrosObtenidosText by remember { mutableStateOf("") }
+    // Consumo Rápido (-)
     var insumoSeleccionado by remember { mutableStateOf<Insumo?>(null) }
     var cantidadConsumoText by remember { mutableStateOf("") }
 
-    // Variables para Despresar
+    // Despresar Pollo
     var insumoADespresar by remember { mutableStateOf<Insumo?>(null) }
     var kilosADespresarText by remember { mutableStateOf("") }
     var presasCaldoText by remember { mutableStateOf("") }
     var presasSalchipolloText by remember { mutableStateOf("") }
+
+    // Convertir Huesitos
+    var insumoAConvertirHueso by remember { mutableStateOf<Insumo?>(null) }
+    var kilosHuesoText by remember { mutableStateOf("") }
+    var presasTallarinText by remember { mutableStateOf("") }
 
     Box(modifier = Modifier.fillMaxSize()) {
         Column(modifier = Modifier.fillMaxSize().padding(24.dp)) {
@@ -51,7 +55,7 @@ fun DashboardScreen(viewModel: InventarioViewModel) {
                     Text(text = "Inventario vacío.\nToca el botón + para agregar.", color = MaterialTheme.colorScheme.onBackground.copy(alpha = 0.5f))
                 }
             } else {
-                Text(text = "Lista de Insumos", style = MaterialTheme.typography.titleLarge, color = MaterialTheme.colorScheme.onBackground, modifier = Modifier.padding(bottom = 16.dp))
+                Text(text = "Lista de Insumos", style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.onBackground, modifier = Modifier.padding(bottom = 16.dp))
 
                 LazyColumn(verticalArrangement = Arrangement.spacedBy(16.dp)) {
                     items(insumos) { insumo ->
@@ -68,33 +72,58 @@ fun DashboardScreen(viewModel: InventarioViewModel) {
                             ) {
                                 Column(modifier = Modifier.weight(1f)) {
                                     Text(insumo.nombre, color = if(insumo.stockActual <= 0) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.onSurface, style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
-                                    Text("Inversión: S/ ${insumo.costo}", color = MaterialTheme.colorScheme.primary, style = MaterialTheme.typography.bodySmall)
+                                    Text("Costo ref: S/ ${insumo.costo}", color = MaterialTheme.colorScheme.primary, style = MaterialTheme.typography.bodySmall)
                                 }
                                 Row(verticalAlignment = Alignment.CenterVertically) {
 
+                                    // BOTÓN DINÁMICO: Pollo
                                     if (insumo.nombre.contains("pollo", ignoreCase = true) && insumo.unidad == "kg" && insumo.stockActual > 0) {
                                         Button(
                                             onClick = { insumoADespresar = insumo },
                                             colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.secondary),
-                                            contentPadding = PaddingValues(horizontal = 12.dp, vertical = 4.dp),
-                                            modifier = Modifier.height(36.dp).padding(end = 12.dp)
+                                            modifier = Modifier.height(34.dp).padding(end = 8.dp),
+                                            contentPadding = PaddingValues(horizontal = 8.dp)
                                         ) {
-                                            Text("Despresar", fontSize = 12.sp, color = MaterialTheme.colorScheme.background, fontWeight = FontWeight.Bold)
+                                            Text("Despresar", fontSize = 10.sp, color = MaterialTheme.colorScheme.background, fontWeight = FontWeight.Bold)
                                         }
                                     }
 
-                                    Text("${insumo.stockActual} ${insumo.unidad}", color = if(insumo.stockActual <= 0) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.primary, style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
+                                    // BOTÓN DINÁMICO: Huesitos
+                                    if (insumo.nombre.contains("hueso", ignoreCase = true) && insumo.stockActual > 0) {
+                                        Button(
+                                            onClick = { insumoAConvertirHueso = insumo },
+                                            colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.tertiary),
+                                            modifier = Modifier.height(34.dp).padding(end = 8.dp),
+                                            contentPadding = PaddingValues(horizontal = 8.dp)
+                                        ) {
+                                            Text("Convertir", fontSize = 10.sp, color = MaterialTheme.colorScheme.onTertiary, fontWeight = FontWeight.Bold)
+                                        }
+                                        val nombreMinusculas = insumo.nombre.lowercase()
 
-                                    Spacer(modifier = Modifier.width(16.dp)) // Aumentamos espacio al quitar el "+"
+                                        if ((nombreMinusculas.contains("maracuya") || nombreMinusculas.contains("maracuyá"))
+                                            && insumo.unidad == "kg") {
 
-                                    // Solo queda el botón de Restar (-) para mermas o gastos rápidos
+                                            Button(
+                                                onClick = { insumoAConvertirMaracuya = insumo },
+                                                colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.primary),
+                                                modifier = Modifier.height(34.dp).padding(end = 8.dp)
+                                            ) {
+                                                Text("Preparar", fontSize = 10.sp, color = MaterialTheme.colorScheme.onPrimary)
+                                            }
+                                        }
+                                    }
+
+                                    Text("${insumo.stockActual} ${insumo.unidad}", color = if(insumo.stockActual <= 0) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.primary, style = MaterialTheme.typography.bodyMedium, fontWeight = FontWeight.Bold)
+
+                                    Spacer(modifier = Modifier.width(12.dp))
+
                                     IconButton(
                                         onClick = { insumoSeleccionado = insumo },
                                         enabled = insumo.stockActual > 0,
-                                        colors = IconButtonDefaults.iconButtonColors(containerColor = MaterialTheme.colorScheme.primary.copy(alpha = 0.15f)),
-                                        modifier = Modifier.size(36.dp)
+                                        colors = IconButtonDefaults.iconButtonColors(containerColor = MaterialTheme.colorScheme.primary.copy(alpha = 0.1f)),
+                                        modifier = Modifier.size(32.dp)
                                     ) {
-                                        Text("-", fontSize = 28.sp, fontWeight = FontWeight.Bold, color = if(insumo.stockActual > 0) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurface.copy(alpha = 0.3f))
+                                        Text("-", fontSize = 22.sp, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.primary)
                                     }
                                 }
                             }
@@ -110,77 +139,61 @@ fun DashboardScreen(viewModel: InventarioViewModel) {
             containerColor = MaterialTheme.colorScheme.primary,
             contentColor = MaterialTheme.colorScheme.background
         ) {
-            Icon(Icons.Filled.Add, contentDescription = "Agregar Insumo")
+            Icon(Icons.Filled.Add, contentDescription = "Nuevo Ingrediente")
         }
     }
 
-    // --- DIÁLOGOS (Nuevo Insumo, Restar y Despresar) ---
+    // --- DIÁLOGOS DE ACCIÓN ---
+
+    // 1. NUEVO INGREDIENTE (Solo nombre y unidad)
     if (mostrarDialogoAgregar) {
         AlertDialog(
-            onDismissRequest = { mostrarDialogoAgregar = false; errorNombre = false; errorCostoNuevo = false },
+            onDismissRequest = { mostrarDialogoAgregar = false; errorNombre = false },
             containerColor = MaterialTheme.colorScheme.surface,
-            title = { Text("Nuevo Insumo", color = MaterialTheme.colorScheme.onSurface, fontWeight = FontWeight.Bold) },
+            title = { Text("Nuevo Ingrediente", fontWeight = FontWeight.Bold) },
             text = {
-                Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                    Text("Registra el nombre. El stock se añade en 'Ajustes > Compras'.", style = MaterialTheme.typography.bodySmall)
                     OutlinedTextField(
-                        value = nombreText, onValueChange = { nombreText = it; errorNombre = it.isBlank() },
-                        label = { Text("Nombre (ej. Pollo, Aceite)") },
-                        isError = errorNombre
+                        value = nombreText,
+                        onValueChange = { nombreText = it; errorNombre = it.isBlank() },
+                        label = { Text("Nombre") },
+                        isError = errorNombre,
+                        modifier = Modifier.fillMaxWidth()
                     )
+                    Text("Unidad:", style = MaterialTheme.typography.labelMedium)
                     Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                         opcionesUnidad.forEach { unidad ->
                             FilterChip(selected = unidadSeleccionada == unidad, onClick = { unidadSeleccionada = unidad }, label = { Text(unidad) })
                         }
                     }
-                    OutlinedTextField(value = cantidadText, onValueChange = { cantidadText = it }, label = { Text("Stock Inicial") }, keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number))
-
-                    OutlinedTextField(
-                        value = costoText, onValueChange = { costoText = it; errorCostoNuevo = it.isBlank() },
-                        label = { Text("Costo Total (S/)") },
-                        isError = errorCostoNuevo,
-                        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number)
-                    )
-                    if (errorCostoNuevo) Text("El costo es obligatorio", color = MaterialTheme.colorScheme.error, style = MaterialTheme.typography.bodySmall)
                 }
             },
             confirmButton = {
-                Button(
-                    onClick = {
-                        val cant = cantidadText.toDoubleOrNull() ?: 0.0
-                        val cost = costoText.toDoubleOrNull() ?: 0.0
-
-                        if (nombreText.isNotBlank() && cost > 0) {
-                            viewModel.agregarInsumo(nombreText, unidadSeleccionada, cant, cost)
-                            mostrarDialogoAgregar = false; nombreText = ""; cantidadText = ""; costoText = ""; unidadSeleccionada = "kg"
-                        } else {
-                            errorNombre = nombreText.isBlank()
-                            errorCostoNuevo = cost <= 0
-                        }
-                    },
-                    enabled = nombreText.isNotBlank() && costoText.isNotBlank()
-                ) { Text("Guardar", color = MaterialTheme.colorScheme.background) }
+                Button(onClick = {
+                    if (nombreText.isNotBlank()) {
+                        viewModel.agregarInsumo(nombreText, unidadSeleccionada, 0.0, 0.0)
+                        mostrarDialogoAgregar = false; nombreText = ""; unidadSeleccionada = "kg"
+                    } else { errorNombre = true }
+                }) { Text("Crear") }
             },
             dismissButton = { TextButton(onClick = { mostrarDialogoAgregar = false }) { Text("Cancelar") } }
         )
     }
 
+    // 2. DESCONTAR MERMA (-)
     if (insumoSeleccionado != null) {
         AlertDialog(
             onDismissRequest = { insumoSeleccionado = null; cantidadConsumoText = "" },
-            containerColor = MaterialTheme.colorScheme.surface,
             title = { Text("Descontar ${insumoSeleccionado!!.nombre}", fontWeight = FontWeight.Bold) },
             text = {
-                Column {
-                    Text("Stock actual: ${insumoSeleccionado!!.stockActual} ${insumoSeleccionado!!.unidad}")
-                    Spacer(modifier = Modifier.height(16.dp))
-                    OutlinedTextField(value = cantidadConsumoText, onValueChange = { cantidadConsumoText = it }, label = { Text("Cantidad a restar") }, keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number))
-                }
+                OutlinedTextField(value = cantidadConsumoText, onValueChange = { cantidadConsumoText = it }, label = { Text("Cantidad a restar") }, keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number))
             },
             confirmButton = {
                 Button(onClick = {
-                    val cantidad = cantidadConsumoText.toDoubleOrNull() ?: 0.0
-                    if (cantidad > 0) {
-                        viewModel.registrarConsumo(insumoSeleccionado!!, cantidad)
+                    val cant = cantidadConsumoText.toDoubleOrNull() ?: 0.0
+                    if (cant > 0) {
+                        viewModel.registrarConsumo(insumoSeleccionado!!, cant)
                         insumoSeleccionado = null; cantidadConsumoText = ""
                     }
                 }) { Text("Confirmar") }
@@ -189,10 +202,10 @@ fun DashboardScreen(viewModel: InventarioViewModel) {
         )
     }
 
+    // 3. DESPRESAR POLLO
     if (insumoADespresar != null) {
         AlertDialog(
             onDismissRequest = { insumoADespresar = null; kilosADespresarText = ""; presasCaldoText = ""; presasSalchipolloText = "" },
-            containerColor = MaterialTheme.colorScheme.surface,
             title = { Text("Despresar Pollo", fontWeight = FontWeight.Bold) },
             text = {
                 Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
@@ -204,15 +217,65 @@ fun DashboardScreen(viewModel: InventarioViewModel) {
             confirmButton = {
                 Button(onClick = {
                     val kilos = kilosADespresarText.toDoubleOrNull() ?: 0.0
-                    val pCaldo = presasCaldoText.toIntOrNull() ?: 0
-                    val pSalchi = presasSalchipolloText.toIntOrNull() ?: 0
-                    if (kilos > 0 && (pCaldo > 0 || pSalchi > 0)) {
-                        viewModel.despresarPollo(insumoADespresar!!, kilos, pCaldo, pSalchi)
+                    val pc = presasCaldoText.toIntOrNull() ?: 0
+                    val ps = presasSalchipolloText.toIntOrNull() ?: 0
+                    if (kilos > 0 && (pc > 0 || ps > 0)) {
+                        viewModel.despresarPollo(insumoADespresar!!, kilos, pc, ps)
                         insumoADespresar = null; kilosADespresarText = ""; presasCaldoText = ""; presasSalchipolloText = ""
                     }
-                }) { Text("Convertir") }
+                }) { Text("Procesar") }
             },
             dismissButton = { TextButton(onClick = { insumoADespresar = null }) { Text("Cancelar") } }
+        )
+    }
+
+    // 4. CONVERTIR HUESITOS
+    if (insumoAConvertirHueso != null) {
+        AlertDialog(
+            onDismissRequest = { insumoAConvertirHueso = null; kilosHuesoText = ""; presasTallarinText = "" },
+            title = { Text("Procesar Huesitos", fontWeight = FontWeight.Bold) },
+            text = {
+                Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                    Text("Convierte bolsa de huesos en presas para tallarín.", style = MaterialTheme.typography.bodySmall)
+                    OutlinedTextField(value = kilosHuesoText, onValueChange = { kilosHuesoText = it }, label = { Text("Kilos a usar") }, keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number))
+                    OutlinedTextField(value = presasTallarinText, onValueChange = { presasTallarinText = it }, label = { Text("Presas obtenidas") }, keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number))
+                }
+            },
+            confirmButton = {
+                Button(onClick = {
+                    val k = kilosHuesoText.toDoubleOrNull() ?: 0.0
+                    val c = presasTallarinText.toIntOrNull() ?: 0
+                    if (k > 0 && c > 0) {
+                        viewModel.convertirHuesitos(insumoAConvertirHueso!!, k, c)
+                        insumoAConvertirHueso = null; kilosHuesoText = ""; presasTallarinText = ""
+                    }
+                }) { Text("Confirmar") }
+            },
+            dismissButton = { TextButton(onClick = { insumoAConvertirHueso = null }) { Text("Cancelar") } }
+        )
+    }
+    // Dentro del LazyColumn de DashboardScreen
+    if (insumoAConvertirMaracuya != null) {
+        AlertDialog(
+            onDismissRequest = { insumoAConvertirMaracuya = null },
+            title = { Text("Preparar Maracuyá") },
+            text = {
+                Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                    OutlinedTextField(value = kilosMaracuyaText, onValueChange = { kilosMaracuyaText = it }, label = { Text("Kilos usados") }, keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number))
+                    OutlinedTextField(value = litrosObtenidosText, onValueChange = { litrosObtenidosText = it }, label = { Text("Litros preparados") }, keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number))
+                }
+            },
+            confirmButton = {
+                Button(onClick = {
+                    val k = kilosMaracuyaText.toDoubleOrNull() ?: 0.0
+                    val l = litrosObtenidosText.toDoubleOrNull() ?: 0.0
+                    if (k > 0 && l > 0) {
+                        viewModel.prepararMaracuya(insumoAConvertirMaracuya!!, k, l)
+                        insumoAConvertirMaracuya = null
+                    }
+                }) { Text("Confirmar") }
+            },
+            dismissButton = { TextButton(onClick = { insumoAConvertirMaracuya = null }) { Text("Cancelar") } }
         )
     }
 }

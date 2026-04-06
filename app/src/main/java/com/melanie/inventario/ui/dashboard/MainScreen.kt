@@ -20,9 +20,23 @@ import com.melanie.inventario.viewmodel.InventarioViewModel
 @Composable
 fun MainScreen(viewModel: InventarioViewModel) {
     val navController = rememberNavController()
-    val items = listOf(Screen.Inicio, Screen.Alertas, Screen.Reportes, Screen.Ventas)
+
+    // Definimos los ítems de la barra inferior
+    val itemsTab = listOf(Screen.Inicio, Screen.Alertas, Screen.Reportes, Screen.Ventas)
+
     val navBackStackEntry by navController.currentBackStackEntryAsState()
     val currentRoute = navBackStackEntry?.destination?.route
+
+    // --- LÓGICA SENIOR: CONTROL DE VISIBILIDAD ---
+    // Solo estas rutas mostrarán la barra inferior.
+    // Si entras a un reporte específico o a ajustes, se ocultará automáticamente.
+    val rutasPrincipales = listOf(
+        Screen.Inicio.route,
+        Screen.Alertas.route,
+        Screen.Reportes.route,
+        Screen.Ventas.route
+    )
+    val mostrarBottomBar = currentRoute in rutasPrincipales
 
     Scaffold(
         topBar = {
@@ -30,15 +44,16 @@ fun MainScreen(viewModel: InventarioViewModel) {
                 title = { Text(text = "Antojitos Melanie", color = MaterialTheme.colorScheme.primary) },
                 colors = TopAppBarDefaults.topAppBarColors(containerColor = MaterialTheme.colorScheme.surface),
                 navigationIcon = {
-                    val esPantallaPrincipal = items.any { it.route == currentRoute }
-                    if (!esPantallaPrincipal && currentRoute != null) {
+                    // Botón de volver: solo aparece si NO estamos en una pantalla principal
+                    if (!rutasPrincipales.contains(currentRoute) && currentRoute != null) {
                         IconButton(onClick = { navController.popBackStack() }) {
                             Icon(Icons.Default.ArrowBack, contentDescription = "Volver", tint = MaterialTheme.colorScheme.primary)
                         }
                     }
                 },
                 actions = {
-                    if (currentRoute != Screen.Ajustes.route) {
+                    // Ocultamos el icono de ajustes si ya estamos dentro de Ajustes
+                    if (currentRoute != Screen.Ajustes.route && mostrarBottomBar) {
                         IconButton(onClick = { navController.navigate(Screen.Ajustes.route) }) {
                             Icon(Icons.Default.Settings, contentDescription = "Ajustes")
                         }
@@ -47,40 +62,51 @@ fun MainScreen(viewModel: InventarioViewModel) {
             )
         },
         bottomBar = {
-            NavigationBar(containerColor = MaterialTheme.colorScheme.surface) {
-                val currentDestination = navBackStackEntry?.destination
-                items.forEach { screen ->
-                    val selected = currentDestination?.hierarchy?.any { it.route == screen.route } == true
-                    NavigationBarItem(
-                        icon = { Icon(screen.icon, contentDescription = screen.title) },
-                        label = { Text(screen.title) },
-                        selected = selected,
-                        onClick = {
-                            navController.navigate(screen.route) {
-                                popUpTo(navController.graph.findStartDestination().id) { saveState = true }
-                                launchSingleTop = true
-                                restoreState = true
+            // Solo renderizamos la barra si es una pantalla principal
+            if (mostrarBottomBar) {
+                NavigationBar(containerColor = MaterialTheme.colorScheme.surface) {
+                    val currentDestination = navBackStackEntry?.destination
+                    itemsTab.forEach { screen ->
+                        val selected = currentDestination?.hierarchy?.any { it.route == screen.route } == true
+                        NavigationBarItem(
+                            icon = { Icon(screen.icon, contentDescription = screen.title) },
+                            label = { Text(screen.title) },
+                            selected = selected,
+                            onClick = {
+                                navController.navigate(screen.route) {
+                                    popUpTo(navController.graph.findStartDestination().id) { saveState = true }
+                                    launchSingleTop = true
+                                    restoreState = true
+                                }
                             }
-                        }
-                    )
+                        )
+                    }
                 }
             }
         }
     ) { innerPadding ->
-        NavHost(navController, Screen.Inicio.route, Modifier.padding(innerPadding)) {
+        NavHost(
+            navController = navController,
+            startDestination = Screen.Inicio.route,
+            modifier = Modifier.padding(innerPadding)
+        ) {
+            // --- PANTALLAS PRINCIPALES ---
             composable(Screen.Inicio.route) { DashboardScreen(viewModel) }
             composable(Screen.Alertas.route) { AlertasScreen(viewModel) }
 
-            // --- MENÚ DE REPORTES ---
-            composable(Screen.Reportes.route) { ReportesMenuScreen(navController) }
+            // CORRECCIÓN AQUÍ: Se agrega el viewModel como parámetro
+            composable(Screen.Reportes.route) {
+                ReportesMenuScreen(navController = navController, viewModel = viewModel)
+            }
+
+            composable(Screen.Ventas.route) { VentasScreen(viewModel) }
+
+            // --- SUB-PANTALLAS DE REPORTES ---
             composable(Screen.ReporteConsumo.route) { ReporteConsumoScreen(viewModel) }
             composable(Screen.ReporteCompras.route) { ReporteComprasScreen(viewModel) }
-            composable(Screen.ReporteVentas.route) { ReporteVentasScreen(viewModel) } // Dejamos la que tiene viewModel
+            composable(Screen.ReporteVentas.route) { ReporteVentasScreen(viewModel) }
 
-            // --- MÓDULO DE VENTAS ---
-            composable(Screen.Ventas.route) { VentasScreen(viewModel) } // Dejamos la que tiene viewModel
-
-            // --- AJUSTES Y SUB-PANTALLAS ---
+            // --- SUB-PANTALLAS DE AJUSTES ---
             composable(Screen.Ajustes.route) { AjustesScreen(navController) }
             composable(Screen.AdministrarEliminar.route) { EliminarInsumosScreen(viewModel) }
             composable(Screen.ConfigurarAlertas.route) { ConfigurarAlertasScreen(viewModel) }

@@ -1,7 +1,8 @@
 package com.melanie.inventario.data
 
 data class ReporteVentaItem(
-    val nombreInsumo: String,
-    val totalCantidad: Double,
-    val totalIngresos: Double
+    val nombre: String,
+    val totalCantidadVendida: Double,
+    val totalIngresos: Double,
+    val notas: String
 )

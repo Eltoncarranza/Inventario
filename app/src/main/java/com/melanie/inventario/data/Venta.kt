@@ -9,5 +9,6 @@ data class Venta(
     val insumoId: Int,
     val cantidadVendida: Double,
     val precioTotal: Double,
-    val fechaEnMilisegundos: Long
+    val fechaEnMilisegundos: Long,
+    val notas: String = "" // Agrega esta línea
 )

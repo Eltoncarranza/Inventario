@@ -1,65 +1,55 @@
 package com.melanie.inventario.data
 
-
-import androidx.room.Dao
-import androidx.room.Insert
-import androidx.room.OnConflictStrategy
-import androidx.room.Query
-import androidx.room.Update
+import androidx.room.*
 import kotlinx.coroutines.flow.Flow
 
 @Dao
 interface InventarioDao {
+
+    // --- INSUMOS ---
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun agregarInsumo(insumo: Insumo)
-
-    @Insert
-    suspend fun registrarVenta(venta: Venta)
-
-    @Query("""
-        SELECT i.nombre as nombreInsumo, SUM(v.cantidadVendida) as totalCantidad, SUM(v.precioTotal) as totalIngresos 
-        FROM ventas v 
-        INNER JOIN insumos i ON v.insumoId = i.id 
-        WHERE v.fechaEnMilisegundos BETWEEN :fechaInicio AND :fechaFin 
-        GROUP BY i.id
-    """)
-    fun obtenerReporteVentasPeriodo(fechaInicio: Long, fechaFin: Long): Flow<List<ReporteVentaItem>>
-
-    @Insert
-    suspend fun registrarConsumo(consumo: Consumo)
 
     @Query("SELECT * FROM insumos")
     fun obtenerTodosLosInsumos(): Flow<List<Insumo>>
 
-    @Query("SELECT SUM(cantidadUsada) FROM consumos WHERE insumoId = :insumoId AND fechaEnMilisegundos >= :fechaInicio AND fechaEnMilisegundos <= :fechaFin")
-    fun obtenerConsumoPorPeriodo(insumoId: Int, fechaInicio: Long, fechaFin: Long): Flow<Double?>
-
-    // NUEVO: Función para restar la cantidad usada al stock actual
-    @Query("UPDATE insumos SET stockActual = stockActual - :cantidadUsada WHERE id = :insumoId")
-    suspend fun restarStock(insumoId: Int, cantidadUsada: Double)
-
-    // NUEVO: Función para eliminar el insumo si se acaba
-    @Query("DELETE FROM insumos WHERE id = :insumoId")
-    suspend fun eliminarInsumo(insumoId: Int)
-
-    // --- NUEVAS FUNCIONES PARA EL CONVERTIDOR ---
-
-    // Busca si ya existe un insumo con un nombre específico (ej. "Presa de Caldo")
     @Query("SELECT * FROM insumos WHERE nombre = :nombreInsumo LIMIT 1")
     suspend fun buscarInsumoPorNombre(nombreInsumo: String): Insumo?
 
-    // Permite sumar stock a un insumo que ya existe
-    @Query("UPDATE insumos SET stockActual = stockActual + :cantidadASumar WHERE id = :insumoId")
-    suspend fun sumarStock(insumoId: Int, cantidadASumar: Double)
-
-    // NUEVO: Función para cuando vas al mercado y compras más de algo que ya tienes
-    @Query("UPDATE insumos SET stockActual = stockActual + :cantidad, costo = costo + :nuevoCosto WHERE id = :insumoId")
-    suspend fun recargarStock(insumoId: Int, cantidad: Double, nuevoCosto: Double)
-
-    // NUEVO: Permite editar un insumo completo (cambiar nombre, alarma, etc.)
     @Update
     suspend fun actualizarInsumo(insumo: Insumo)
 
+    @Query("UPDATE insumos SET stockActual = stockActual - :cantidadUsada WHERE id = :insumoId")
+    suspend fun restarStock(insumoId: Int, cantidadUsada: Double)
+
+    @Query("UPDATE insumos SET stockActual = stockActual + :cantidadASumar WHERE id = :insumoId")
+    suspend fun sumarStock(insumoId: Int, cantidadASumar: Double)
+
+    @Query("UPDATE insumos SET stockActual = stockActual + :cantidad, costo = costo + :nuevoCosto WHERE id = :insumoId")
+    suspend fun recargarStock(insumoId: Int, cantidad: Double, nuevoCosto: Double)
+
+    @Query("DELETE FROM insumos WHERE id = :insumoId")
+    suspend fun eliminarInsumo(insumoId: Int)
+
+    // --- VENTAS ---
+    @Insert
+    suspend fun registrarVenta(venta: Venta)
+
+    // REPORTE DE VENTAS CORREGIDO (Solo una vez y con los nombres de campos correctos)
+    @Query("""
+        SELECT 
+            i.nombre AS nombre, 
+            SUM(v.cantidadVendida) AS totalCantidadVendida, 
+            SUM(v.precioTotal) AS totalIngresos,
+            v.notas AS notas
+        FROM ventas AS v
+        INNER JOIN insumos AS i ON v.insumoId = i.id
+        WHERE v.fechaEnMilisegundos BETWEEN :fechaInicio AND :fechaFin
+        GROUP BY i.nombre, v.notas
+    """)
+    fun obtenerReporteVentasPeriodo(fechaInicio: Long, fechaFin: Long): Flow<List<ReporteVentaItem>>
+
+    // --- COMPRAS ---
     @Insert
     suspend fun registrarCompra(compra: Compra)
 
@@ -71,12 +61,21 @@ interface InventarioDao {
     """)
     fun obtenerReporteComprasPeriodo(fechaInicio: Long, fechaFin: Long): Flow<List<ReporteCompraItem>>
 
+    @Query("SELECT SUM(costo) FROM compras WHERE fechaEnMilisegundos BETWEEN :fechaInicio AND :fechaFin")
+    fun obtenerTotalGastadoPeriodo(fechaInicio: Long, fechaFin: Long): Flow<Double?>
+    // --- CONSUMOS ---
+    @Insert
+    suspend fun registrarConsumo(consumo: Consumo)
+
     @Query("""
-    SELECT i.nombre as nombre, i.unidad as unidad, SUM(c.cantidadUsada) as totalConsumido
-    FROM consumos c
-    INNER JOIN insumos i ON c.insumoId = i.id
-    WHERE c.fechaEnMilisegundos BETWEEN :fechaInicio AND :fechaFin
-    GROUP BY i.id
-""")
+        SELECT i.nombre as nombre, i.unidad as unidad, SUM(c.cantidadUsada) as totalConsumido
+        FROM consumos c
+        INNER JOIN insumos i ON c.insumoId = i.id
+        WHERE c.fechaEnMilisegundos BETWEEN :fechaInicio AND :fechaFin
+        GROUP BY i.id
+    """)
     fun obtenerReporteConsumoPeriodo(fechaInicio: Long, fechaFin: Long): Flow<List<ReporteConsumoItem>>
+
+    @Query("SELECT SUM(cantidadUsada) FROM consumos WHERE insumoId = :insumoId AND fechaEnMilisegundos BETWEEN :fechaInicio AND :fechaFin")
+    fun obtenerConsumoPorPeriodo(insumoId: Int, fechaInicio: Long, fechaFin: Long): Flow<Double?>
 }
