@@ -26,7 +26,7 @@ fun enviarCierreWhatsApp(context: Context, totalVentas: Double, totalGastos: Dou
     try {
         val intent = Intent(Intent.ACTION_VIEW)
         // REEMPLAZA EL NÚMERO AQUÍ (Ejemplo: 51900000000)
-        val numeroMelanie = "51900000000"
+        val numeroMelanie = "51939154420"
         val url = "https://api.whatsapp.com/send?phone=$numeroMelanie&text=" + URLEncoder.encode(mensaje, "UTF-8")
         intent.data = Uri.parse(url)
         context.startActivity(intent)
